@@ -11,7 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "python":"/home/lqb/anaconda3/envs/llama/bin/python",
+            "python":"/home/baishengyuan/anaconda3/envs/nllm/bin/python",
             "args": ["--train_args_file",
                     "train_args/qlora/scierc-sft-qlora.json",
                     ]

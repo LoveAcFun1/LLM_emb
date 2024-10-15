@@ -81,6 +81,9 @@ class SFTDataCollator(object):
             'target_mask': target_mask_batch,
             # 'test_labels':test_labels_batch,
             'test_ids':test_batch,
+            'noise_pos' : noise_batch,
+            'normal_pos': normal_batch,
+            # 'ins_mask':ins_mask_batch
         }
         
         inputs["images"] = pmt_batch

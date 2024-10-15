@@ -9,7 +9,6 @@ import transformers
 from utils.Drop_Llama import Drop_Llama
 import argparse
 from loguru import logger
-import os
 from os.path import join
 import torch
 import bitsandbytes as bnb
@@ -159,7 +158,7 @@ def init_components(args, training_args):
     # if os.environ.get('LOCAL_RANK') is not None:
     #     local_rank = int(os.environ.get('LOCAL_RANK', '0'))
     #     device_map = {'': local_rank}
-
+    # p = os.environ.get('LOCAL_RANK')
     training_args.ddp_find_unused_parameters = False
     local_rank = int(os.environ.get('LOCAL_RANK', '0'))
     device_map = {'': local_rank}

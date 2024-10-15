@@ -103,10 +103,22 @@ def get_metrics(tokenizer, type):
                 while (i,l_list[0],l_list[1], t) in label_all_full:
                     t += 1 
                 label_all_full.append((i,l_list[0],l_list[1],t))
+                t = 0 
+                while (i,l_list[0],l_list[1], t) in label_all_full:
+                    t += 1 
+                label_all_full.append((i,l_list[0],l_list[1],t))
             for r in response:
                 r_list = r.split(": ")
                 if len(r_list) != 2:
                     continue
+                t = 0 
+                while (i,r_list[0],r_list[1],t) in pred_all_full:
+                    t += 1
+                pred_all_full.append((i,r_list[0],r_list[1],t))
+
+              
+        ner_tot_recall = len(label_all_full)
+        tot_pred_tot = len(pred_all_full)
                 t = 0 
                 while (i,r_list[0],r_list[1],t) in pred_all_full:
                     t += 1
@@ -124,7 +136,8 @@ def get_metrics(tokenizer, type):
         r = cor_tot / ner_tot_recall 
         f1_tot = 2 * (p * r) / (p + r) if cor_tot > 0 else 0.0
         ad = {'f1':  f1_tot, 'precision': p, 'recall': r}
-        print(ad)    
+        print(ad)
+        torch.cuda.empty_cache()    
         return {'f1':  f1_tot, 'precision': p, 'recall': r}
     
     
@@ -135,6 +148,8 @@ def get_metrics(tokenizer, type):
         preds = np.where(preds>0, preds, 0)
         label_all = []
         pred_all = []
+        labels_sub = []
+        preds_sub = []
         labels_sub = []
         preds_sub = []
         cor_tot = 0
@@ -151,6 +166,10 @@ def get_metrics(tokenizer, type):
                     while (i,l,t) in labels_sub:
                         t+=1
                     labels_sub.append((i,l,t))
+                    t = 0 
+                    while (i,l,t) in labels_sub:
+                        t+=1
+                    labels_sub.append((i,l,t))
                 if l == "None":
                     label_all.append((i,"None","None"))
                     continue
@@ -161,8 +180,16 @@ def get_metrics(tokenizer, type):
                 while (i,l_list[0].replace(" ", ""),l_list[1].replace(" ", ""),t) in label_all:
                     t+=1
                 label_all.append((i,l_list[0].replace(" ", ""),l_list[1].replace(" ", ""),t))
+                t = 0 
+                while (i,l_list[0].replace(" ", ""),l_list[1].replace(" ", ""),t) in label_all:
+                    t+=1
+                label_all.append((i,l_list[0].replace(" ", ""),l_list[1].replace(" ", ""),t))
             for r in response:
                 if r != "None":
+                    t = 0 
+                    while (i,r,t) in preds_sub:
+                        t+=1
+                    preds_sub.append((i,r,t))
                     t = 0 
                     while (i,r,t) in preds_sub:
                         t+=1
@@ -173,6 +200,10 @@ def get_metrics(tokenizer, type):
                 r_list = r.split(": ")
                 if len(r_list) != 2:
                     continue
+                t = 0 
+                while (i,r_list[0].replace(" ", ""),r_list[1].replace(" ", ""),t) in pred_all:
+                    t+=1
+                pred_all.append((i,r_list[0].replace(" ", ""),r_list[1].replace(" ", ""),t))
                 t = 0 
                 while (i,r_list[0].replace(" ", ""),r_list[1].replace(" ", ""),t) in pred_all:
                     t+=1
@@ -210,6 +241,7 @@ def get_metrics(tokenizer, type):
         ad = {'f1_none':  f1_tot, 'precision': p, 'recall': r, 'f1':  f1, 'precision1': p1, 'recall1': r1}
         print(ad)    
         return {'f1_none':  f1_tot, 'precision': p, 'recall': r, 'f1':  f1, 'precision1': p1, 'recall1': r1}
+        return {'f1_none':  f1_tot, 'precision': p, 'recall': r, 'f1':  f1, 'precision1': p1, 'recall1': r1}
     
     def compute_metrics_re_class(pred_o):
         labels = np.array(pred_o.label_ids)
@@ -244,9 +276,15 @@ def get_metrics(tokenizer, type):
         precision_m = precision_score(label_all, pred_all, average='macro')
         recall_m = recall_score(label_all, pred_all, average='macro')
         ad = {'micro-f1':  f1, 'micro-precision': precision, 'micro-recall': recall, 'macro-f1':  f1_m, 'macro-precision': precision_m, 'macro-recall': recall_m}
+        f1_m = f1_score(label_all, pred_all, average='macro')
+        precision_m = precision_score(label_all, pred_all, average='macro')
+        recall_m = recall_score(label_all, pred_all, average='macro')
+        ad = {'micro-f1':  f1, 'micro-precision': precision, 'micro-recall': recall, 'macro-f1':  f1_m, 'macro-precision': precision_m, 'macro-recall': recall_m}
         print(ad)    
         return {'micro-f1':  f1, 'micro-precision': precision, 'micro-recall': recall, 'macro-f1':  f1_m, 'macro-precision': precision_m, 'macro-recall': recall_m}
+        return {'micro-f1':  f1, 'micro-precision': precision, 'micro-recall': recall, 'macro-f1':  f1_m, 'macro-precision': precision_m, 'macro-recall': recall_m}
     
+    if type=="RE" or type == "ABSA":
     if type=="RE" or type == "ABSA":
         return compute_metrics_re
     elif type == "NER":
