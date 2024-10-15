@@ -1,0 +1,1 @@
+python train_qlora.py --train_args_file train_args/qlora/scierc-sft-qlora.json

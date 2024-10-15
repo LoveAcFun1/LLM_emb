@@ -22,7 +22,7 @@ class ModelUtils(object):
             quantization_config = None
 
         # 加载base model
-        model = Llama_seq2seq.from_pretrained(
+        model = AutoModelForCausalLM.from_pretrained(
             model_name_or_path,
             load_in_4bit=load_in_4bit,
             trust_remote_code=True,

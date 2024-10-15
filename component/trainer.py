@@ -38,29 +38,10 @@ from transformers.trainer_pt_utils import (
     reissue_pt_warnings,
 )
 from transformers.trainer_utils import (
-    PREFIX_CHECKPOINT_DIR,
-    BestRun,
     EvalLoopOutput,
     EvalPrediction,
-    FSDPOption,
-    HPSearchBackend,
-    HubStrategy,
-    IntervalStrategy,
-    PredictionOutput,
-    RemoveColumnsCollator,
-    ShardedDDPOption,
-    TrainerMemoryTracker,
-    TrainOutput,
-    default_compute_objective,
     denumpify_detensorize,
-    enable_full_determinism,
-    find_executable_batch_size,
-    get_last_checkpoint,
     has_length,
-    number_of_arguments,
-    seed_worker,
-    set_seed,
-    speed_metrics,
 )
 from transformers.training_args import OptimizerNames, ParallelMode, TrainingArguments
 from transformers.utils import (
@@ -147,6 +128,7 @@ class Trainer(transformers.Trainer):
             preprocess_logits_for_metrics=preprocess_logits_for_metrics,
         )
         self.loss_func = compute_loss
+        self.use_emb = True
 
     def compute_loss(self, model, inputs, return_outputs=False):
         """
@@ -162,21 +144,48 @@ class LoRATrainer(Trainer):
     """
     修改checkkpoint的保存逻辑，只保存lora
     """
+    # def _save(self, output_dir: Optional[str] = None, state_dict=None):
+    #     # If we are executing this function, we are the process zero, so we don't check for that.
+    #     output_dir = output_dir if output_dir is not None else self.args.output_dir
+    #     os.makedirs(output_dir, exist_ok=True)
+    #     logger.info(f"Saving model checkpoint to {output_dir}")
+    #     # 保存lora权重和配置
+    #     self.model.save_pretrained(
+    #         output_dir, state_dict=state_dict, safe_serialization=self.args.save_safetensors
+    #     )
+
+    #     if self.tokenizer is not None:
+    #         self.tokenizer.save_pretrained(output_dir)
+
+    #     # Good practice: save your training arguments together with the trained model
+    #     torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))
+    
+    def _save_checkpoint(self, model, trial, metrics=None):
+        if getattr(self.args, 'tune_mm_mlp_adapter', False):
+            from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+            checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
+
+            run_dir = self._get_output_dir(trial=trial)
+            output_dir = os.path.join(run_dir, checkpoint_folder)
+
+            # Only save Adapter
+            keys_to_match = ['mm_projector', 'vision_resampler']
+            if getattr(self.args, "use_im_start_end", False):
+                keys_to_match.extend(['embed_tokens', 'embed_in'])
+
+            weight_to_save = get_mm_adapter_state_maybe_zero_3(self.model.named_parameters(), keys_to_match)
+
+            if self.args.local_rank == 0 or self.args.local_rank == -1:
+                self.model.config.save_pretrained(output_dir)
+                torch.save(weight_to_save, os.path.join(output_dir, f'mm_projector.bin'))
+        else:
+            super(LoRATrainer, self)._save_checkpoint(model, trial, metrics)
+
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
-        # If we are executing this function, we are the process zero, so we don't check for that.
-        output_dir = output_dir if output_dir is not None else self.args.output_dir
-        os.makedirs(output_dir, exist_ok=True)
-        logger.info(f"Saving model checkpoint to {output_dir}")
-        # 保存lora权重和配置
-        self.model.save_pretrained(
-            output_dir, state_dict=state_dict, safe_serialization=self.args.save_safetensors
-        )
-
-        if self.tokenizer is not None:
-            self.tokenizer.save_pretrained(output_dir)
-
-        # Good practice: save your training arguments together with the trained model
-        torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))
+        if getattr(self.args, 'tune_mm_mlp_adapter', False):
+            pass
+        else:
+            super(LoRATrainer, self)._save(output_dir, state_dict)
         
 
     def prediction_step(
@@ -360,7 +369,7 @@ class LoRATrainer(Trainer):
             # Prediction step
             loss, logits, labels = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
             a = inputs["test_ids"].size()[-1]
-            logits = logits[:,a:]
+            logits = logits if self.use_emb else logits[:,a:]
             inputs_decode = self._prepare_input(inputs["input_ids"]) if args.include_inputs_for_metrics else None
 
             if is_torch_tpu_available():

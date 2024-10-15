@@ -22,7 +22,7 @@ def main():
 
     # 使用base model和adapter进行推理，无需手动合并权重
     model_name_or_path = '/home/lqb/llama-7B'
-    adapter_name_or_path = 'output/llama_CoNll03_noise/final'
+    adapter_name_or_path = None
 
     # 是否使用4bit进行推理，能够节省很多显存，但效果可能会有一定的下降
     load_in_4bit = False
@@ -30,7 +30,7 @@ def main():
     max_new_tokens = 50
     
     top_p = 0.9
-    temperature = 0.35
+    temperature = 0.05
     repetition_penalty = 1.0
     device = 'cuda'
     # 加载模型
@@ -63,17 +63,36 @@ def main():
             input_ids = tokenizer(text, return_tensors="pt", add_special_tokens=False).input_ids.to(device)
             bos_token_id = torch.tensor([[tokenizer.bos_token_id]], dtype=torch.long).to(device)
             eos_token_id = torch.tensor([[tokenizer.eos_token_id]], dtype=torch.long).to(device)
-            input_ids = torch.concat([bos_token_id, input_ids, eos_token_id], dim=1)
+            pad_token_id = torch.tensor([[0,0,0,0,0,0]], dtype=torch.long).to(device)
+            input_ids = torch.concat([pad_token_id, bos_token_id, input_ids, eos_token_id], dim=1)
+            
+           
+            embeds = model.get_input_embeddings()(input_ids)
+            attention_mask = torch.where(input_ids == 0, torch.tensor(0.0), torch.tensor(1.0)).to(device)
+
         with torch.no_grad():
             outputs = model.generate(
                 input_ids=input_ids, max_new_tokens=max_new_tokens, do_sample=True,
+                # inputs_embeds=embeds, max_new_tokens=max_new_tokens, do_sample=True,
                 top_p=top_p, temperature=temperature, repetition_penalty=repetition_penalty,
                 eos_token_id=tokenizer.eos_token_id
             )
-        outputs = outputs.tolist()[0][len(input_ids[0]):]
-        response = tokenizer.decode(outputs)
-        response = response.strip().replace(tokenizer.eos_token, "").strip()
-        print("Firefly：{}".format(response))
+            outputs_emb = model.generate(
+                # input_ids=input_ids, max_new_tokens=max_new_tokens, do_sample=True,
+                inputs_embeds=embeds, max_new_tokens=max_new_tokens, do_sample=True,
+                top_p=top_p, temperature=temperature, repetition_penalty=repetition_penalty,
+                eos_token_id=tokenizer.eos_token_id, attention_mask = attention_mask
+            )
+        for out in outputs:
+            out = out.tolist()[len(input_ids[0]):]
+            response = tokenizer.decode(out)
+            response = response.strip().replace(tokenizer.eos_token, "").strip()
+            print("Firefly：{}".format(response))
+        for out in outputs_emb:
+            out = out.tolist()
+            response = tokenizer.decode(out)
+            response = response.strip().replace(tokenizer.eos_token, "").strip()
+            print("Firefly_emb：{}".format(response))
         text = input('User：')
 
 
